@@ -1,0 +1,424 @@
+/* assets/theme.css
+   Modern, sleek, responsive styling for Dash.
+   Works with the light/dark theme toggle via .theme-light / .theme-dark on #app-shell.
+*/
+
+:root {
+  --radius: 14px;
+  --radius-sm: 10px;
+  --shadow: 0 10px 30px rgba(0,0,0,.08);
+  --shadow-sm: 0 6px 18px rgba(0,0,0,.08);
+  --border-w: 1px;
+  --font-sans: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  --maxw: 1400px;
+}
+
+.theme-light {
+  --bg: #f6f8fb;
+  --surface: rgba(255,255,255,.72);
+  --surface-2: #ffffff;
+  --text: #0b1220;
+  --muted: #5b677a;
+  --border: rgba(15, 23, 42, .10);
+  --accent: #2563eb;
+  --accent-2: #7c3aed;
+  --chip-bg: rgba(37, 99, 235, .08);
+}
+
+.theme-dark {
+  --bg: #0b1220;
+  --surface: rgba(17, 24, 39, .75);
+  --surface-2: #0f172a;
+  --text: #e5e7eb;
+  --muted: #9ca3af;
+  --border: rgba(148, 163, 184, .14);
+  --accent: #60a5fa;
+  --accent-2: #c4b5fd;
+  --chip-bg: rgba(96, 165, 250, .12);
+}
+
+html, body {
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+#app-shell {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+  color: var(--text);
+}
+
+/* Header */
+.app-header {
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+  background: var(--surface);
+  backdrop-filter: blur(10px);
+  border-bottom: var(--border-w) solid var(--border);
+}
+
+.app-header-inner {
+  max-width: var(--maxw);
+  margin: 0 auto;
+  padding: 14px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.brand-title {
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: .2px;
+  line-height: 1.1;
+}
+
+.brand-subtitle {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.header-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.chip {
+  display: inline-flex;
+  gap: 8px;
+  align-items: baseline;
+  padding: 8px 10px;
+  border-radius: 999px;
+  background: var(--chip-bg);
+  border: var(--border-w) solid var(--border);
+  max-width: min(520px, 80vw);
+}
+.chip-label { color: var(--muted); font-size: 12px; }
+.chip-value {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: min(420px, 64vw);
+}
+
+.btn-ghost {
+  border: var(--border-w) solid var(--border);
+  background: var(--surface-2);
+  color: var(--text);
+  border-radius: 999px;
+  padding: 8px 12px;
+  font-weight: 600;
+  font-size: 12px;
+  box-shadow: var(--shadow-sm);
+}
+.btn-ghost:hover { filter: brightness(0.98); }
+
+/* Main content */
+.app-main {
+  flex: 1;
+  padding: 16px 0 24px;
+}
+
+.content-container {
+  max-width: var(--maxw);
+  margin: 0 auto;
+  padding: 0 14px;
+}
+
+/* Tabs */
+.app-tabs-container {
+  margin-top: 10px;
+}
+
+.app-tabs {
+  display: flex;
+  overflow-x: auto;
+  gap: 8px;
+  padding: 8px 4px 10px;
+  scrollbar-width: thin;
+}
+
+/* dcc.Tabs renders its own wrapper; we style tabs via className props */
+.app-tab {
+  padding: 10px 12px;
+  border-radius: 999px !important;
+  border: var(--border-w) solid var(--border) !important;
+  background: var(--surface);
+  color: var(--muted);
+  font-weight: 600;
+  font-size: 12px;
+  white-space: nowrap;
+  box-shadow: none;
+}
+
+.app-tab-selected {
+  background: var(--surface-2) !important;
+  color: var(--text) !important;
+  border-color: rgba(37, 99, 235, .35) !important;
+  box-shadow: var(--shadow-sm);
+}
+
+.tab-body {
+  margin-top: 10px;
+  background: var(--surface);
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+
+.tab-body-inner {
+  padding: 14px;
+}
+
+/* Generic panel wrapper if used */
+.panel {
+  background: var(--surface-2);
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+  margin-bottom: 14px;
+}
+.panel-header { padding: 14px 14px 0; }
+.panel-title { font-size: 16px; margin: 0; }
+.panel-subtitle { color: var(--muted); font-size: 12px; margin-top: 4px; }
+.panel-divider { margin: 12px 0 0; opacity: .6; }
+.panel-body { padding: 14px; }
+
+/* Inputs: Dash react-select */
+.Select-control, .Select-menu-outer, .Select-multi-value-wrapper, .Select-input {
+  font-size: 13px !important;
+}
+.Select-control {
+  border-radius: 12px !important;
+  border: var(--border-w) solid var(--border) !important;
+  background: var(--surface-2) !important;
+  box-shadow: none !important;
+  min-height: 40px !important;
+}
+.Select-menu-outer {
+  border-radius: 12px !important;
+  border: var(--border-w) solid var(--border) !important;
+  background: var(--surface-2) !important;
+  overflow: hidden;
+}
+
+/* Graphs */
+.js-plotly-plot, .dash-graph {
+  border-radius: 12px;
+}
+
+/* Dash DataTable */
+.dash-table-container .dash-spreadsheet-container {
+  border-radius: 12px;
+  overflow: hidden;
+  border: var(--border-w) solid var(--border);
+  background: var(--surface-2);
+  box-shadow: var(--shadow-sm);
+}
+
+/* Footer */
+.app-footer {
+  border-top: var(--border-w) solid var(--border);
+  padding: 14px 0;
+  color: var(--muted);
+  font-size: 12px;
+  background: transparent;
+}
+
+/* Small screens */
+@media (max-width: 640px) {
+  .app-header-inner { align-items: flex-start; }
+  .chip { max-width: 92vw; }
+  .tab-body-inner { padding: 12px; }
+}
+
+
+/* Interactive PMF viewer loading feedback */
+.pmf-loader-status {
+  font-size: 12px;
+  color: var(--muted);
+  margin: 4px 0 6px;
+  font-family: var(--font-mono);
+}
+.pmf-curve-loading-shell {
+  position: relative;
+}
+.pmf-progress-track {
+  display: none;
+  height: 4px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: rgba(148, 163, 184, .20);
+  margin: 2px 0 6px;
+}
+.pmf-progress-bar {
+  height: 100%;
+  width: 38%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--accent), var(--accent-2));
+  animation: pmf-progress-slide 1.05s ease-in-out infinite;
+}
+@keyframes pmf-progress-slide {
+  0% { transform: translateX(-110%); }
+  100% { transform: translateX(280%); }
+}
+.pmf-curve-loading-shell[data-dash-is-loading="true"] .pmf-progress-track,
+*[data-dash-is-loading="true"] .pmf-progress-track,
+.dash-loading .pmf-progress-track {
+  display: block;
+}
+
+/* ── Redesign 2026-05 ─────────────────────────────────────────────────── */
+
+/* App shell */
+#app-shell {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  background: var(--bg);
+  color: var(--text);
+}
+
+/* Header */
+.app-header {
+  height: 40px;
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+  background: var(--surface);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-bottom: var(--border-w) solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 14px;
+  flex-shrink: 0;
+}
+
+.brand-title {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: .1px;
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.theme-toggle-btn {
+  border: var(--border-w) solid var(--border);
+  background: var(--surface-2);
+  color: var(--text);
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 12px;
+  cursor: pointer;
+  white-space: nowrap;
+  line-height: 1;
+}
+.theme-toggle-btn:hover { filter: brightness(0.97); }
+
+/* Group selector row */
+.nav-group-bar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 38px;
+  padding: 0 14px;
+  background: var(--bg);
+  border-bottom: var(--border-w) solid var(--border);
+  flex-shrink: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.nav-group-bar::-webkit-scrollbar { display: none; }
+
+.nav-group-btn {
+  border: var(--border-w) solid var(--border);
+  background: var(--surface);
+  color: var(--muted);
+  border-radius: 6px;
+  padding: 3px 10px;
+  font-size: 10px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  line-height: 1.4;
+}
+.nav-group-btn:hover { filter: brightness(0.97); }
+
+.nav-group-btn-active {
+  background: var(--accent) !important;
+  color: #fff !important;
+  border-color: var(--accent) !important;
+}
+
+/* Tab pill row */
+.nav-tab-bar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 38px;
+  padding: 0 14px;
+  background: var(--bg);
+  border-bottom: var(--border-w) solid var(--border);
+  flex-shrink: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.nav-tab-bar::-webkit-scrollbar { display: none; }
+
+.nav-tab-btn {
+  border: var(--border-w) solid var(--border);
+  background: var(--surface);
+  color: var(--muted);
+  border-radius: 999px;
+  padding: 4px 11px;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  line-height: 1.4;
+}
+.nav-tab-btn:hover { filter: brightness(0.97); }
+
+.nav-tab-btn-active {
+  background: var(--surface-2) !important;
+  color: var(--text) !important;
+  border-color: rgba(37, 99, 235, .35) !important;
+  font-weight: 600;
+  box-shadow: var(--shadow-sm);
+}
+
+.theme-dark .nav-tab-btn-active {
+  border-color: rgba(96, 165, 250, .35) !important;
+}
+
+/* Hide the dcc.Tabs strip — nav replaced by custom grouped nav */
+.app-tabs-hidden .app-tabs {
+  display: none !important;
+}
+
+/* Remove top margin from tab body when using custom nav */
+.app-main .tab-body { margin-top: 0; }
+
+/* App main */
+.app-main {
+  flex: 1;
+  padding: 10px 0 16px;
+}
