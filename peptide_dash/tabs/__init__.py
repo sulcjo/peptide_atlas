@@ -7,7 +7,6 @@ from . import (
     diagnostics_tab,
     correlation,
     pca_tab,
-    diffusion_map_tab,
     umap_tab,
     umap_region_pmf_tab,
     pmf_dendrogram_tab,
@@ -57,13 +56,6 @@ def build_tabs_layout(ctx):
             children=_wrap(pca_tab.layout(ctx)),
         ),
 
-        dcc.Tab(
-            label="Diffusion Map",
-            value="diffusion_map",
-            className="app-tab",
-            selected_className="app-tab-selected",
-            children=_wrap(diffusion_map_tab.layout(ctx)),
-        ),
         dcc.Tab(
             label="UMAP",
             value="umap",
@@ -150,7 +142,6 @@ def register_all_callbacks(app, ctx):
     diagnostics_tab.register_callbacks(app, ctx)
     correlation.register_callbacks(app, ctx)
     pca_tab.register_callbacks(app, ctx)
-    diffusion_map_tab.register_callbacks(app, ctx)
     umap_tab.register_callbacks(app, ctx)
     umap_region_pmf_tab.register_callbacks(app, ctx)
     pmf_dendrogram_tab.register_callbacks(app, ctx)

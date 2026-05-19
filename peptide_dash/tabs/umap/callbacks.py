@@ -2,7 +2,7 @@ from .shared import *
 from .analytics import (_add_dbscan_clusters, _pca_loading_tables, _family_pca_loading_table_from_Xdf, _corr_tables_for_axes, _global_top_corr_for_axes)
 from .data_access import (_ctx_features_df, _ctx_pmf_df, _ctx_pmf_metrics, _ctx_pmf_variants, _variant_values, _variant_dropdown_options, _umap_data_status_children)
 from .embedding import _compute_umap_embedding
-from .figures import (_template, _error_fig, _build_umap_figure, _merge_feature_columns_for_embedding, _color_options_from_features, _trajectory_feature_options_from_features)
+from .figures import (_template, _error_fig, _build_umap_figure, _dm_spectral_fig, _merge_feature_columns_for_embedding, _color_options_from_features, _trajectory_feature_options_from_features)
 from .input_matrix import _umap_source_mode
 from .layout import make_layout
 from .pmf_landscape import _pmf_temperature_from_frame, _pmf_unit_factor_label, _pmf_y_column
@@ -305,6 +305,7 @@ def _register_callbacks_with_data(app: dash.Dash, ctx: Any, feats_df: pd.DataFra
         Output("umap-min-dist", "max"),
         Output("umap-min-dist", "step"),
         Output("umap-min-dist", "value"),
+        Output("umap-dm-controls", "style"),
         Input("umap-embedding", "value"),
         State("umap-min-dist", "value"),
         prevent_initial_call=False,
@@ -316,13 +317,15 @@ def _register_callbacks_with_data(app: dash.Dash, ctx: Any, feats_df: pd.DataFra
         except Exception:
             cur = float("nan")
 
+        _dm_style_show = {"display": "block"}
+        _dm_style_hide = {"display": "none"}
         if method == "densmap":
             val = cur if np.isfinite(cur) and 0.0 <= cur <= 1.0 else 0.12
             return (
                 "neighbors",
                 "min_dist",
                 "DensMAP uses the UMAP graph plus density preservation; min_dist controls visual packing. DensMAP-specific density controls are below.",
-                0.0, 1.0, 0.01, val,
+                0.0, 1.0, 0.01, val, _dm_style_hide,
             )
         if method == "isomap":
             val = cur if np.isfinite(cur) and 0.0 <= cur <= 1.0 else 0.0
@@ -330,7 +333,7 @@ def _register_callbacks_with_data(app: dash.Dash, ctx: Any, feats_df: pd.DataFra
                 "geodesic kNN",
                 "unused",
                 "Isomap uses the neighbor count to build a geodesic-distance graph. The second parameter is ignored for Isomap.",
-                0.0, 1.0, 0.01, val,
+                0.0, 1.0, 0.01, val, _dm_style_hide,
             )
         if method in {"diffusion", "diffusion-map", "diffusion_map", "diffmap", "dm"}:
             val = int(round(cur)) if np.isfinite(cur) else 1
@@ -338,8 +341,8 @@ def _register_callbacks_with_data(app: dash.Dash, ctx: Any, feats_df: pd.DataFra
             return (
                 "diffusion kNN",
                 "time t",
-                "Diffusion Map uses kNN to build a random-walk graph; time t controls how many diffusion steps are encoded in the eigenvector coordinates.",
-                0, 10, 1, val,
+                "Diffusion Map uses kNN to build a random-walk graph; time t controls how many diffusion steps are encoded in the eigenvector coordinates. Alpha and axis selectors are in the Diffusion Map settings block below.",
+                0, 10, 1, val, _dm_style_show,
             )
         if method in {"phate", "phate-like", "phate_like"}:
             val = int(round(cur)) if np.isfinite(cur) else 3
@@ -348,16 +351,74 @@ def _register_callbacks_with_data(app: dash.Dash, ctx: Any, feats_df: pd.DataFra
                 "diffusion kNN",
                 "time t",
                 "PHATE uses a diffusion graph and potential distance -log(P^t); time t controls smoothing along progressions/branches.",
-                1, 20, 1, val,
+                1, 20, 1, val, _dm_style_hide,
             )
         val = cur if np.isfinite(cur) and 0.0 <= cur <= 1.0 else 0.12
         return (
             "neighbors",
             "min_dist",
             "UMAP uses neighbors to build the local graph; min_dist controls how tightly points may pack in the displayed map.",
-            0.0, 1.0, 0.01, val,
+            0.0, 1.0, 0.01, val, _dm_style_hide,
         )
 
+
+    # --- D2: Populate DC axis selectors after embedding ---
+    @app.callback(
+        Output("umap-dm-dc-x", "options"), Output("umap-dm-dc-x", "value"),
+        Output("umap-dm-dc-y", "options"), Output("umap-dm-dc-y", "value"),
+        Output("umap-dm-dc-z", "options"), Output("umap-dm-dc-z", "value"),
+        Input("umap-embedding-data", "data"),
+        prevent_initial_call=True,
+    )
+    def _populate_dc_selectors(embedding_data):
+        from dash.exceptions import PreventUpdate
+        if not isinstance(embedding_data, dict) or not embedding_data:
+            raise PreventUpdate
+        plot_df = _plot_df_from_store(embedding_data)
+        dc_cols = sorted(
+            [c for c in plot_df.columns if str(c).startswith("DC") and str(c)[2:].isdigit()],
+            key=lambda c: int(str(c)[2:]),
+        )
+        if not dc_cols:
+            raise PreventUpdate
+        options = [{"label": c, "value": int(str(c)[2:])} for c in dc_cols]
+        z_default = int(str(dc_cols[2])[2:]) if len(dc_cols) >= 3 else int(str(dc_cols[-1])[2:])
+        return options, 1, options, 2, options, z_default
+
+    # --- D3: Re-render graph when DC axis selectors change ---
+    @app.callback(
+        Output("umap-graph", "figure", allow_duplicate=True),
+        Input("umap-dm-dc-x", "value"),
+        Input("umap-dm-dc-y", "value"),
+        Input("umap-dm-dc-z", "value"),
+        State("umap-embedding-data", "data"),
+        State("umap-color", "value"),
+        State("umap-dims", "value"),
+        State("umap-embedding", "value"),
+        State("theme-store", "data"),
+        prevent_initial_call=True,
+    )
+    def _dm_axis_rerender(dc_x, dc_y, dc_z, embedding_data, colorby, dims, method, theme):
+        from dash.exceptions import PreventUpdate
+        from ..shared import apply_theme
+        method = str(method or "").lower()
+        if method not in {"diffusion", "diffusion-map", "diffusion_map", "diffmap", "dm"}:
+            raise PreventUpdate
+        plot_df = _plot_df_from_store(embedding_data)
+        if plot_df.empty:
+            raise PreventUpdate
+        dims = int(dims or 2)
+        try:
+            if dc_x is not None and f"DC{int(dc_x)}" in plot_df.columns:
+                plot_df["UMAP1"] = plot_df[f"DC{int(dc_x)}"]
+            if dc_y is not None and f"DC{int(dc_y)}" in plot_df.columns:
+                plot_df["UMAP2"] = plot_df[f"DC{int(dc_y)}"]
+            if dims >= 3 and dc_z is not None and f"DC{int(dc_z)}" in plot_df.columns:
+                plot_df["UMAP3"] = plot_df[f"DC{int(dc_z)}"]
+        except Exception:
+            raise PreventUpdate
+        fig = _build_umap_figure(plot_df, dims=dims, colorby=colorby, label_col=None)
+        return apply_theme(fig, theme)
 
     # --- Main compute callback ---
     @app.callback(
@@ -365,6 +426,7 @@ def _register_callbacks_with_data(app: dash.Dash, ctx: Any, feats_df: pd.DataFra
         Output("umap-corr-table", "children"),
         Output("umap-metrics", "children"),
         Output("umap-embedding-data", "data"),
+        Output("umap-dm-spectral", "children"),
         Input("umap-recalc", "n_clicks"),
         Input("umap-cache-quickload", "n_clicks"),
         State("umap-preset", "value"),
@@ -393,6 +455,10 @@ def _register_callbacks_with_data(app: dash.Dash, ctx: Any, feats_df: pd.DataFra
         State("umap-label", "value"),
         State("umap-stability-runs", "value"),
         State("umap-stability-k", "value"),
+        State("umap-pca-cap", "value"),
+        State("umap-dm-alpha", "value"),
+        State("umap-dm-n-components", "value"),
+        State("umap-feature-arrows", "value"),
         Input("theme-store", "data"),
     )
     def _umap_callback(
@@ -424,6 +490,10 @@ def _register_callbacks_with_data(app: dash.Dash, ctx: Any, feats_df: pd.DataFra
         label_col,
         stability_runs=None,
         stability_k=None,
+        pca_cap=None,
+        dm_alpha=None,
+        dm_n_components=None,
+        feature_arrows_val=None,
         theme=None,
     ):
         from dash import callback_context as _dcc_ctx
@@ -433,7 +503,7 @@ def _register_callbacks_with_data(app: dash.Dash, ctx: Any, feats_df: pd.DataFra
         # Before first click
         if not n_clicks and not quickload_requested:
             fig = _error_fig("Press 'Recalculate UMAP' to compute embedding, or Quickload last to restore the previous cached map.")
-            return apply_theme(fig, theme), html.Div(), html.Div(), {}
+            return apply_theme(fig, theme), html.Div(), html.Div(), {}, html.Div()
 
         fit_use_all = "all" in (fit_use_all_val or [])
         plot_use_all = "all" in (plot_use_all_val or [])
@@ -463,14 +533,23 @@ def _register_callbacks_with_data(app: dash.Dash, ctx: Any, feats_df: pd.DataFra
                 pmf_repr=pmf_repr, fit_use_all=fit_use_all, plot_use_all=plot_use_all,
                 fit_variants=fit_variants or [], plot_variants=plot_variants or [], plot_union=plot_union,
                 stability_runs=stability_runs, stability_k=stability_k,
+                pca_cap=int(pca_cap or 64),
+                dm_alpha=dm_alpha,
+                dm_n_components=int(dm_n_components or 10),
             )
             cache_key = _embedding_cache_key(cache_params, feats_now, pmf_now)
+            # Auto-check cache by exact parameter hash before computing
+            if cache_key and cached_payload is None:
+                cached_payload, cache_note = _load_embedding_cache_payload(ctx, key=cache_key)
+                if cached_payload is not None:
+                    cache_note = f"auto-hit: {cache_note}"
 
+        extra_data: dict = {}
         if cached_payload is not None:
             plot_df = _plot_df_from_embedding_cache(cached_payload)
             if plot_df.empty:
                 fig = _error_fig("Cached embedding is empty.", cache_note)
-                return apply_theme(fig, theme), html.Div(), html.Div(html.Small(cache_note)), {}
+                return apply_theme(fig, theme), html.Div(), html.Div(html.Small(cache_note)), {}, html.Div()
             cached_params = cached_payload.get("params", {}) if isinstance(cached_payload, dict) else {}
             try:
                 dims = int(cached_params.get("dims", dims or 2) or 2)
@@ -492,6 +571,7 @@ def _register_callbacks_with_data(app: dash.Dash, ctx: Any, feats_df: pd.DataFra
                     colnames,
                     info,
                     pca_loadings,
+                    extra_data,
                 ) = _compute_umap_embedding(
                 pmf_df=pmf_now,
                 feats_df=feats_now,
@@ -514,14 +594,17 @@ def _register_callbacks_with_data(app: dash.Dash, ctx: Any, feats_df: pd.DataFra
                 plot_union=plot_union,
                 stability_runs=stability_runs,
                 stability_k=stability_k,
+                pca_cap=int(pca_cap or 64),
+                dm_alpha=dm_alpha,
+                dm_n_components=int(dm_n_components or 10),
             )
             except Exception as e:
                 fig = _error_fig("UMAP error (exception)", str(e))
-                return apply_theme(fig, theme), html.Div(html.Small("UMAP raised an exception.")), html.Div(), {}
+                return apply_theme(fig, theme), html.Div(html.Small("UMAP raised an exception.")), html.Div(), {}, html.Div()
 
             if plot_df is None:
                 fig = _error_fig("UMAP could not be computed.", info)
-                return apply_theme(fig, theme), html.Div(), html.Div(html.Small(info)), {}
+                return apply_theme(fig, theme), html.Div(), html.Div(html.Small(info)), {}, html.Div()
 
             saved_path = _save_embedding_cache(ctx, cache_key, plot_df, str(info or ""), cache_params)
             info = f"{info}; {_cache_summary_text(saved_path, cache_key)}"
@@ -550,8 +633,43 @@ def _register_callbacks_with_data(app: dash.Dash, ctx: Any, feats_df: pd.DataFra
         if dbscan_enabled and ("on" in (dbscan_color or [])) and ("dbscan_cluster" in plot_df.columns):
             colorby = "dbscan_cluster"
 
+        # Feature gradient arrows (biplot) — top 5 features by combined Spearman magnitude
+        gradient_data: Optional[dict] = None
+        if "on" in (feature_arrows_val or []) and Xdf is not None and emb is not None and int(dims or 2) == 2 and len(colnames) > 0 and emb.shape[0] == Xdf.shape[0] and emb.shape[1] >= 2:
+            try:
+                axis1 = pd.Series(emb[:, 0])
+                axis2 = pd.Series(emb[:, 1])
+                arrow_candidates: list = []
+                for j, colname in enumerate(colnames):
+                    s = pd.to_numeric(Xdf.iloc[:, j], errors="coerce")
+                    rho_x, rho_y = 0.0, 0.0
+                    ok1 = np.isfinite(s) & np.isfinite(axis1)
+                    if ok1.sum() >= 3:
+                        sr, ar = s[ok1].rank(), axis1[ok1].rank()
+                        if sr.std(ddof=1) > 0 and ar.std(ddof=1) > 0:
+                            rho_x = float(np.corrcoef(sr.to_numpy(), ar.to_numpy())[0, 1])
+                    ok2 = np.isfinite(s) & np.isfinite(axis2)
+                    if ok2.sum() >= 3:
+                        sr, ar = s[ok2].rank(), axis2[ok2].rank()
+                        if sr.std(ddof=1) > 0 and ar.std(ddof=1) > 0:
+                            rho_y = float(np.corrcoef(sr.to_numpy(), ar.to_numpy())[0, 1])
+                    mag = float(np.sqrt(rho_x ** 2 + rho_y ** 2))
+                    arrow_candidates.append((colname, rho_x, rho_y, mag))
+                arrow_candidates.sort(key=lambda x: -x[3])
+                gradient_data = {
+                    "arrows": [
+                        {"feature": prettify_column_label(a[0]), "rho_x": a[1], "rho_y": a[2]}
+                        for a in arrow_candidates[:5]
+                    ]
+                }
+            except Exception:
+                gradient_data = None
+
+        # DM spectral panel (eigenvalues + VNE curve)
+        dm_spectral_div = _dm_spectral_fig(extra_data, theme=theme or "plotly_white")
+
         # Main figure
-        fig = _build_umap_figure(plot_df, dims=int(dims or 2), colorby=colorby, label_col=label_col)
+        fig = _build_umap_figure(plot_df, dims=int(dims or 2), colorby=colorby, label_col=label_col, gradient_data=gradient_data)
 
         # Analytics
         corr_div = html.Div()
@@ -678,8 +796,10 @@ def _register_callbacks_with_data(app: dash.Dash, ctx: Any, feats_df: pd.DataFra
                 ),
             )
         metrics_div = html.Div(metrics_children)
-        embedding_store = _plot_df_store_payload(plot_df, embedding_method, int(dims or 2))
-        return apply_theme(fig, theme), corr_div, metrics_div, embedding_store
+        uirev = cache_key[:12] if cache_key else None
+        fig.update_layout(uirevision=uirev or "stable")
+        embedding_store = _plot_df_store_payload(plot_df, embedding_method, int(dims or 2), ui_revision=uirev)
+        return apply_theme(fig, theme), corr_div, metrics_div, embedding_store, dm_spectral_div
 
     # --- Fast recolor: update point colors without recomputing the embedding ---
     @app.callback(
@@ -696,9 +816,47 @@ def _register_callbacks_with_data(app: dash.Dash, ctx: Any, feats_df: pd.DataFra
         plot_df = _merge_feature_columns_for_embedding(plot_df, _ctx_features_df(ctx, feats_df))
         if plot_df.empty:
             raise PreventUpdate
-        fig = _build_umap_figure(plot_df, dims=int(dims or 2), colorby=colorby, label_col=label_col)
+        uirev = (embedding_data or {}).get("ui_revision", "stable") if isinstance(embedding_data, dict) else "stable"
+        fig = _build_umap_figure(plot_df, dims=int(dims or 2), colorby=colorby, label_col=label_col, uirevision=uirev)
         return apply_theme(fig, theme)
 
+
+    @app.callback(
+        Output("umap-hover-info", "children"),
+        Input("umap-graph", "hoverData"),
+        State("umap-embedding-data", "data"),
+        prevent_initial_call=True,
+    )
+    def _umap_hover_preview(hover_data, embedding_data):
+        if not hover_data:
+            return ""
+        try:
+            pt = (hover_data.get("points") or [{}])[0]
+            variant = _variant_from_plot_point(pt)
+            if not variant:
+                return ""
+            plot_df = _plot_df_from_store(embedding_data)
+            row = plot_df[plot_df["variant"].astype(str) == str(variant)] if not plot_df.empty and "variant" in plot_df.columns else pd.DataFrame()
+            parts = [str(variant)]
+            if not row.empty:
+                r = row.iloc[0]
+                for col in ("UMAP1", "UMAP2", "UMAP3"):
+                    if col in r.index and pd.notna(r[col]):
+                        parts.append(f"{col}={float(r[col]):.3f}")
+                for col in ("role", "dbscan_cluster"):
+                    if col in r.index and pd.notna(r[col]) and str(r[col]) not in ("nan", ""):
+                        parts.append(str(r[col]))
+            return "  ·  ".join(parts)
+        except Exception:
+            return ""
+
+    @app.callback(
+        Output("global-selected-variants", "data"),
+        Input("umap-curve-variants", "data"),
+        prevent_initial_call=True,
+    )
+    def _umap_write_global_variants(variants):
+        return {"variants": list(variants or []), "source": "umap"}
 
     @app.callback(
         Output("umap-sequence-region-graph", "figure"),

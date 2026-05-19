@@ -16,7 +16,6 @@ _TAB_LABELS: dict[str, str] = {
     "features": "Features",
     "stats": "Stats",
     "pca": "Variance & PCA",
-    "diffusion_map": "Diffusion Map",
     "umap": "UMAP",
     "umap_region_pmf": "UMAP → PMF",
     "basin_landscape": "Basin Landscape",
@@ -32,7 +31,7 @@ _TAB_LABELS: dict[str, str] = {
 
 _GROUPS: List[Tuple[str, str, List[str]]] = [
     ("features",    "Features",       ["features", "stats"]),
-    ("dimred",      "Dim. Reduction", ["pca", "diffusion_map", "umap", "umap_region_pmf", "basin_landscape"]),
+    ("dimred",      "Dim. Reduction", ["pca", "umap", "umap_region_pmf", "basin_landscape"]),
     ("thermo",      "Thermodynamics", ["pmf_dendrogram_tab", "curves", "timeseries", "rama2d_tab"]),
     ("convergence", "Convergence",    ["convergence", "diagnosis", "corr"]),
     ("info",        "Info",           ["readme"]),
@@ -205,6 +204,7 @@ def create_app(ctx, loader=None):
         dcc.Store(id="theme-store", data="light", storage_type="local"),
         dcc.Store(id="active-group-store", data="features"),
         dcc.Store(id="active-tab-store", data="features"),
+        dcc.Store(id="global-selected-variants", storage_type="memory", data={"variants": [], "source": ""}),
     ]
 
     app_shell = html.Div(

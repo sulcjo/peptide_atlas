@@ -37,14 +37,14 @@ import pandas as pd
 from dash import dcc, html, Input, Output
 import plotly.graph_objs as go
 from ..metrics import residue_display
+from .shared import R_GAS
 
 
 # -------------------------------------------------------------------
 # Constants
 # -------------------------------------------------------------------
 
-# Universal gas constant in kJ / (mol·K)
-R_GAS_KJ_MOLK: float = 8.314462618e-3
+R_GAS_KJ_MOLK = R_GAS  # alias for local usage
 
 
 # -------------------------------------------------------------------
@@ -87,28 +87,12 @@ def _get_theme(ctx: Any, default: str = "dark") -> str:
     return default
 
 
+from ..theming.errors import error_fig as _error_fig_base
+
 def _template(theme: str = "dark") -> str:
     return "plotly_dark" if (theme or "dark") == "dark" else "plotly_white"
 
-
-def _empty_fig(msg: str = "No data", theme: str = "dark") -> go.Figure:
-    fig = go.Figure()
-    fig.add_annotation(
-        x=0.5,
-        y=0.5,
-        text=msg,
-        showarrow=False,
-        xref="paper",
-        yref="paper",
-        font=dict(size=14),
-    )
-    fig.update_layout(
-        template=_template(theme),
-        xaxis=dict(visible=False),
-        yaxis=dict(visible=False),
-        margin=dict(l=40, r=40, t=40, b=40),
-    )
-    return fig
+_empty_fig = _error_fig_base
 
 
 

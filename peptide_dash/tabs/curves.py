@@ -10,14 +10,15 @@ import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from dash import Input, Output, State, dcc, html, no_update
+from dash.exceptions import PreventUpdate
 
 from ..theming.errors import error_fig
 from ..metrics import all_torsion, metric_display_label, residue_display, torsion_sort_key
+from .shared import metric_options as _build_metric_options
 
 TAB_LABEL = "Curves"
 
-# Physical constant (kJ mol^-1 K^-1)
-R_GAS = 0.0083144621
+from .shared import R_GAS
 
 
 
@@ -847,7 +848,7 @@ def register_callbacks(app, ctx):
         if isinstance(cum_df, pd.DataFrame) and not cum_df.empty and "metric" in cum_df.columns:
             cum_metrics = sorted(cum_df["metric"].dropna().unique().tolist(), key=_metric_sort_key)
         metric_options = sorted(set(pmf_metrics + cum_metrics), key=_metric_sort_key)
-        opts = [{"label": metric_display_label(m), "value": m} for m in metric_options]
+        opts = _build_metric_options(metric_options)
         default_val = [metric_options[0]] if metric_options else []
         return opts, default_val
 
@@ -1032,6 +1033,76 @@ def register_callbacks(app, ctx):
         return r1_new, r2_new
 
     @app.callback(
+        Output("curve-variants", "value"),
+        Input("curves-graph", "clickData"),
+        State("curve-variants", "value"),
+        State("curves-graph", "figure"),
+        prevent_initial_call=True,
+    )
+    def _curves_click_select(click_data, current_selection, current_fig):
+        if not click_data:
+            raise PreventUpdate
+        pts = click_data.get("points", [])
+        if not pts:
+            raise PreventUpdate
+        curve_num = pts[0].get("curveNumber")
+        if curve_num is None:
+            raise PreventUpdate
+        try:
+            trace = (current_fig.get("data") or [{}])[curve_num]
+            variant = trace.get("legendgroup") or trace.get("name")
+            if not variant:
+                raise PreventUpdate
+        except (IndexError, AttributeError, TypeError):
+            raise PreventUpdate
+        lst = list(current_selection or [])
+        if variant in lst:
+            lst.remove(variant)
+        else:
+            lst.append(variant)
+        return lst
+
+    @app.callback(
+        Output("curve-region1", "value", allow_duplicate=True),
+        Output("curve-region2", "value", allow_duplicate=True),
+        Input("curves-graph", "relayoutData"),
+        State("curve-region1", "value"),
+        State("curve-region2", "value"),
+        State("curve-region1", "min"),
+        State("curve-region1", "max"),
+        prevent_initial_call=True,
+    )
+    def _curves_zoom_to_region(relayout, r1_val, r2_val, r1_min, r1_max):
+        if not relayout:
+            raise PreventUpdate
+        x0 = relayout.get("xaxis.range[0]")
+        x1 = relayout.get("xaxis.range[1]")
+        if x0 is None or x1 is None:
+            raise PreventUpdate
+        try:
+            x0f, x1f = float(x0), float(x1)
+        except (ValueError, TypeError):
+            raise PreventUpdate
+        lo = min(x0f, x1f)
+        hi = max(x0f, x1f)
+        s_min = float(r1_min) if r1_min is not None else lo
+        s_max = float(r1_max) if r1_max is not None else hi
+        lo = max(s_min, min(lo, s_max))
+        hi = max(s_min, min(hi, s_max))
+        if hi <= lo:
+            raise PreventUpdate
+        mid = (lo + hi) / 2.0
+        r1_cur = r1_val if isinstance(r1_val, list) and len(r1_val) == 2 else [s_min, mid]
+        r2_cur = r2_val if isinstance(r2_val, list) and len(r2_val) == 2 else [mid, s_max]
+        new_r1 = [lo, min(r1_cur[1], hi)]
+        new_r2 = [max(r2_cur[0], lo), hi]
+        if new_r1[1] <= new_r1[0]:
+            new_r1[1] = min(new_r1[0] + (s_max - s_min) * 0.1, s_max)
+        if new_r2[1] <= new_r2[0]:
+            new_r2[0] = max(new_r2[1] - (s_max - s_min) * 0.1, s_min)
+        return new_r1, new_r2
+
+    @app.callback(
         Output("curves-graph", "figure"),
         Output("curves-summary", "children"),
         Input("curve-type", "value"),
@@ -1062,8 +1133,13 @@ def register_callbacks(app, ctx):
         pmfmax_curves,
         theme,
     ):
-        # Read curve data lazily — first access triggers file/DB load; subsequent
-        # accesses return the cached DataFrame from LazyCurvesLoader.
+        # Warm the cache in parallel on first render; no-op on subsequent calls.
+        try:
+            ctx._curves().prefetch("pmf", "pmf_replica", "cum", "cum_replica",
+                                   "rmsf", "rama2d_perres", "rama2d_pooled")
+        except Exception:
+            pass
+
         pmf_df: pd.DataFrame = ctx.pmf_df
         pmf_replica_df: pd.DataFrame = ctx.pmf_replica_df
         cum_df: pd.DataFrame = ctx.cum_df
@@ -1581,7 +1657,7 @@ def register_callbacks(app, ctx):
                 fig.update_layout(shapes=tuple(shapes))
 
             fig.update_layout(
-                height=780,
+                height=580,
                 margin=dict(l=60, r=20, t=60, b=60),
                 legend=dict(
                     orientation="h",
@@ -2051,7 +2127,7 @@ def register_callbacks(app, ctx):
                     fig.update_xaxes(title_text="x", row=r, col=c)
 
             fig.update_layout(
-                height=750,
+                height=580,
                 margin=dict(l=60, r=20, t=60, b=60),
                 legend=dict(
                     orientation="h",
@@ -2094,7 +2170,7 @@ def register_callbacks(app, ctx):
                 title="Per-replica RMSF (mean over residues)",
             )
             fig.update_layout(
-                height=700,
+                height=560,
                 margin=dict(l=60, r=20, t=60, b=60),
                 showlegend=False,
             )
@@ -2252,7 +2328,7 @@ def register_callbacks(app, ctx):
                 title="Ramachandran 1D circular R order parameter",
             )
             fig.update_layout(
-                height=700,
+                height=560,
                 margin=dict(l=60, r=20, t=60, b=60),
                 legend=dict(
                     orientation="h",
@@ -2400,7 +2476,7 @@ def register_callbacks(app, ctx):
 
 
                 fig.update_layout(
-                    height=750,
+                    height=580,
                     margin=dict(l=60, r=20, t=60, b=80),
                     showlegend=False,
                     title=f"Ramachandran 2D PMF (per-residue) — T={T:.0f} K; Fmax={pmfmax:.0f}",
@@ -2535,7 +2611,7 @@ def register_callbacks(app, ctx):
 
             if len(figs) == 1:
                 figs[0].update_layout(
-                    height=700,
+                    height=560,
                     title=f"Ramachandran 2D PMF (pooled) — T={T:.0f} K; Fmax={pmfmax:.0f}",
                 )
                 if pop_rows:
@@ -2622,7 +2698,7 @@ def register_callbacks(app, ctx):
                     constrain="domain",
                 )
             canvas.update_layout(
-                height=750,
+                height=580,
                 showlegend=False,
                 title=f"Ramachandran 2D PMF (pooled) — T={T:.0f} K; Fmax={pmfmax:.0f}",
             )

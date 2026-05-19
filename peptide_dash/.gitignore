@@ -1,0 +1,25 @@
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+.env
+.venv/
+venv/
+*.log
+*.tmp
+.DS_Store
+_archive/
+__pycache__
+*.odt
+*.md
+
+# Large/generated scientific outputs
+*.xtc
+*.trr
+*.edr
+*.cpt
+*.gro
+*.tpr
+*.pdb
+*.npy
+*.npz
+*.xvg

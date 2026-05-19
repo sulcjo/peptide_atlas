@@ -9,6 +9,7 @@ import plotly.graph_objects as go
 from pathlib import Path as _Path
 
 from dash import Input, Output, State, dcc, html, dash_table
+from dash.exceptions import PreventUpdate
 
 from ..theming.errors import error_fig
 from ..metrics import prettify_column_label, torsion_sort_key, parse_torsion_metric
@@ -826,8 +827,8 @@ def register_callbacks(app, ctx):
         fig_corr.update_layout(
             height=700,
             margin=dict(l=80, r=20, t=40, b=40),
-            xaxis=dict(title=None, tickangle=-40),
-            yaxis=dict(title=None, autorange="reversed"),
+            xaxis=dict(title="Feature", tickangle=-40),
+            yaxis=dict(title="Feature", autorange="reversed"),
         )
 
         if selected_f1 and selected_f2 and selected_f1 in cm.index and selected_f2 in cm.columns:
@@ -869,6 +870,7 @@ def register_callbacks(app, ctx):
                         x=selected_f1,
                         y=selected_f2,
                         hover_name="variant" if "variant" in xy.columns else None,
+                        custom_data=["variant"] if "variant" in xy.columns else None,
                         opacity=0.7,
                     )
                     try:
@@ -1065,11 +1067,39 @@ def register_callbacks(app, ctx):
         _x_label = "NMI" if is_mi else "r"
         _x_range = [0.0, 1.0] if is_mi else [-1.0, 1.0]
         n_label = int(df_sub.shape[0])
+        _left_margin = min(max(max(len(l) for l in labels) * 7, 80), 180) if labels else 80
         fig.update_layout(
             title=f"{_x_label} with {prettify_column_label(target_feat)} (n={n_label})",
             xaxis=dict(title=_x_label, range=_x_range),
             yaxis=dict(title=None, autorange="reversed"),
             height=max(300, min(len(results) * 22 + 80, 600)),
-            margin=dict(l=220, r=20, t=40, b=40),
+            margin=dict(l=_left_margin, r=20, t=40, b=40),
         )
         return apply_theme(fig, theme)
+
+    @app.callback(
+        Output("global-selected-variants", "data", allow_duplicate=True),
+        Input("corr-scatter", "clickData"),
+        State("global-selected-variants", "data"),
+        prevent_initial_call=True,
+    )
+    def _corr_scatter_click_to_global(click_data, current_global):
+        if not click_data:
+            raise PreventUpdate
+        pts = click_data.get("points", [])
+        if not pts:
+            raise PreventUpdate
+        pt = pts[0]
+        cd = pt.get("customdata")
+        if cd and len(cd) > 0:
+            variant = str(cd[0])
+        else:
+            variant = str(pt.get("hovertext") or pt.get("text") or "")
+        if not variant:
+            raise PreventUpdate
+        current_variants = list((current_global or {}).get("variants", []))
+        if variant in current_variants:
+            current_variants.remove(variant)
+        else:
+            current_variants.append(variant)
+        return {"variants": current_variants, "source": "correlation"}
