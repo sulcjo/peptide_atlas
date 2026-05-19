@@ -11,6 +11,7 @@ _archive/
 __pycache__
 *.odt
 *.md
+!README.md
 
 # Large/generated scientific outputs
 *.xtc
